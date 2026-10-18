@@ -1,0 +1,18 @@
+{
+    "save_dir_video": "Videos\\ScreenRecords",
+    "save_dir_screenshot": "Pictures\\Screenshots",
+    "fps": 60,
+    "quality": "medium",
+    "encoder": "auto",
+    "record_cursor": true,
+    "record_audio": false,
+    "audio_device": "Default",
+    "auto_copy_clipboard": true,
+    "monitor_index": 0,
+    "capture_region": null,
+    "hotkeys_enabled": true,
+    "hotkey_record_toggle": "F9",
+    "hotkey_record_pause": "F10",
+    "hotkey_screenshot_full": "F11",
+    "hotkey_screenshot_snip": "F12"
+}
