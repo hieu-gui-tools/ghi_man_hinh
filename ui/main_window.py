@@ -225,24 +225,39 @@ class MainWindow(QMainWindow):
         self.combo_monitor.currentIndexChanged.connect(self.on_setting_changed)
         settings_layout.addWidget(self.combo_monitor, 4, 1)
 
-        # Row 5: Cursor & Audio
-        options_box = QHBoxLayout()
-        self.chk_cursor = QCheckBox("Ghi lại con trỏ chuột")
+        # Row 5: Cursor
+        settings_layout.addWidget(QLabel("Con trỏ chuột:"), 5, 0)
+        self.chk_cursor = QCheckBox("Ghi lại con trỏ chuột trên màn hình")
         self.chk_cursor.setChecked(True)
         self.chk_cursor.stateChanged.connect(self.on_setting_changed)
+        settings_layout.addWidget(self.chk_cursor, 5, 1)
 
-        self.chk_audio = QCheckBox("Thu âm thanh")
+        # Row 6: Audio recording & source
+        settings_layout.addWidget(QLabel("Thu âm thanh:"), 6, 0)
+        audio_box = QHBoxLayout()
+        self.chk_audio = QCheckBox("Bật thu âm")
         self.chk_audio.setChecked(False)
         self.chk_audio.stateChanged.connect(self.on_audio_chk_changed)
 
+        self.combo_audio_source = QComboBox()
+        self.combo_audio_source.addItem("🔊 Âm thanh máy tính (Hệ thống / Ứng dụng)", "system")
+        self.combo_audio_source.addItem("🎧 Cả Âm thanh máy tính + Microphone", "both")
+        self.combo_audio_source.addItem("🎙️ Chỉ Microphone", "mic")
+        self.combo_audio_source.setEnabled(False)
+        self.combo_audio_source.currentIndexChanged.connect(self.on_audio_source_changed)
+
+        audio_box.addWidget(self.chk_audio)
+        audio_box.addWidget(self.combo_audio_source, 1)
+        settings_layout.addLayout(audio_box, 6, 1)
+
+        # Row 7: Specific audio device
+        self.label_audio_dev = QLabel("Thiết bị âm thanh:")
+        settings_layout.addWidget(self.label_audio_dev, 7, 0)
         self.combo_audio_dev = QComboBox()
         self.combo_audio_dev.setEnabled(False)
         self._refresh_audio_devices()
-
-        options_box.addWidget(self.chk_cursor)
-        options_box.addWidget(self.chk_audio)
-        options_box.addWidget(self.combo_audio_dev, 1)
-        settings_layout.addLayout(options_box, 5, 0, 1, 2)
+        self.combo_audio_dev.currentIndexChanged.connect(self.on_setting_changed)
+        settings_layout.addWidget(self.combo_audio_dev, 7, 1)
 
         layout.addWidget(settings_card)
         layout.addStretch()
@@ -490,11 +505,42 @@ class MainWindow(QMainWindow):
             self.combo_monitor.addItem(f"{m['name']} - {m['details']}", m['index'])
 
     def _refresh_audio_devices(self):
+        source = getattr(self, "combo_audio_source", None)
+        src_val = source.currentData() if source else "system"
+
+        self.combo_audio_dev.blockSignals(True)
         self.combo_audio_dev.clear()
-        self.combo_audio_dev.addItem("Microphone hệ thống mặc định", None)
-        devices = self.audio_recorder_helper.get_audio_devices()
-        for idx, name in devices:
-            self.combo_audio_dev.addItem(name, idx)
+
+        if src_val == "system":
+            if hasattr(self, "label_audio_dev"):
+                self.label_audio_dev.setText("Loa / Thiết bị phát:")
+            self.combo_audio_dev.addItem("Loa / Tai nghe hệ thống mặc định", None)
+            sys_devs = self.audio_recorder_helper.get_system_devices()
+            for d in sys_devs:
+                label = f"{d['name']} {'(Mặc định)' if d['is_default'] else ''}".strip()
+                self.combo_audio_dev.addItem(label, d['index'])
+        elif src_val == "mic":
+            if hasattr(self, "label_audio_dev"):
+                self.label_audio_dev.setText("Microphone:")
+            self.combo_audio_dev.addItem("Microphone hệ thống mặc định", None)
+            mic_devs = self.audio_recorder_helper.get_mic_devices()
+            for d in mic_devs:
+                label = f"{d['name']} {'(Mặc định)' if d['is_default'] else ''}".strip()
+                self.combo_audio_dev.addItem(label, d['index'])
+        else:  # "both"
+            if hasattr(self, "label_audio_dev"):
+                self.label_audio_dev.setText("Microphone kết hợp:")
+            self.combo_audio_dev.addItem("Microphone mặc định (Hòa âm cùng Loa máy tính)", None)
+            mic_devs = self.audio_recorder_helper.get_mic_devices()
+            for d in mic_devs:
+                label = f"{d['name']} (Hòa âm cùng Loa)".strip()
+                self.combo_audio_dev.addItem(label, d['index'])
+
+        self.combo_audio_dev.blockSignals(False)
+
+    def on_audio_source_changed(self, index):
+        self._refresh_audio_devices()
+        self.on_setting_changed()
 
     def _load_settings_to_ui(self):
         fps = config.get("fps", 60)
@@ -519,9 +565,20 @@ class MainWindow(QMainWindow):
                 self.combo_encoder.setCurrentIndex(i)
                 break
 
+        # Load audio source
+        audio_src = config.get("audio_source", "system")
+        for i in range(self.combo_audio_source.count()):
+            if self.combo_audio_source.itemData(i) == audio_src:
+                self.combo_audio_source.setCurrentIndex(i)
+                break
+
+        self._refresh_audio_devices()
+
         self.chk_cursor.setChecked(config.get("record_cursor", True))
-        self.chk_audio.setChecked(config.get("record_audio", False))
-        self.combo_audio_dev.setEnabled(self.chk_audio.isChecked())
+        audio_on = config.get("record_audio", False)
+        self.chk_audio.setChecked(audio_on)
+        self.combo_audio_source.setEnabled(audio_on)
+        self.combo_audio_dev.setEnabled(audio_on)
 
         # Load hotkeys
         self.txt_hotkey_record.setText(config.get("hotkey_record_toggle", "F9"))
@@ -602,9 +659,14 @@ class MainWindow(QMainWindow):
 
         config.set("record_cursor", self.chk_cursor.isChecked())
         config.set("record_audio", self.chk_audio.isChecked())
+        if hasattr(self, "combo_audio_source"):
+            config.set("audio_source", self.combo_audio_source.currentData() or "system")
 
     def on_audio_chk_changed(self, state):
-        self.combo_audio_dev.setEnabled(self.chk_audio.isChecked())
+        audio_on = self.chk_audio.isChecked()
+        if hasattr(self, "combo_audio_source"):
+            self.combo_audio_source.setEnabled(audio_on)
+        self.combo_audio_dev.setEnabled(audio_on)
         self.on_setting_changed()
 
     def on_area_mode_changed(self, index):
@@ -703,7 +765,10 @@ class MainWindow(QMainWindow):
             mon_idx = self.combo_monitor.currentData() or 0
             rec_cur = self.chk_cursor.isChecked()
             rec_aud = self.chk_audio.isChecked()
+            aud_src = self.combo_audio_source.currentData() or "system"
             aud_dev = self.combo_audio_dev.currentData() if rec_aud else None
+            sys_dev = aud_dev if aud_src == "system" else None
+            mic_dev = aud_dev if aud_src in ("mic", "both") else None
 
             success = recorder.start_recording(
                 monitor_idx=mon_idx,
@@ -713,7 +778,9 @@ class MainWindow(QMainWindow):
                 encoder=encoder_val,
                 record_cursor=rec_cur,
                 record_audio=rec_aud,
-                audio_device_idx=aud_dev
+                audio_source=aud_src,
+                audio_device_system=sys_dev,
+                audio_device_mic=mic_dev
             )
             if not success:
                 QMessageBox.warning(self, "Cảnh báo", "Không thể bắt đầu ghi hình. Vui lòng kiểm tra lại thiết bị!")
@@ -764,6 +831,8 @@ class MainWindow(QMainWindow):
         self.combo_encoder.setEnabled(False)
         self.combo_monitor.setEnabled(False)
         self.chk_audio.setEnabled(False)
+        self.combo_audio_source.setEnabled(False)
+        self.combo_audio_dev.setEnabled(False)
         self.chk_cursor.setEnabled(False)
 
     @Slot(float, float, int)
@@ -830,6 +899,9 @@ class MainWindow(QMainWindow):
         self.combo_encoder.setEnabled(True)
         self.combo_monitor.setEnabled(True)
         self.chk_audio.setEnabled(True)
+        audio_on = self.chk_audio.isChecked()
+        self.combo_audio_source.setEnabled(audio_on)
+        self.combo_audio_dev.setEnabled(audio_on)
         self.chk_cursor.setEnabled(True)
 
         self.refresh_gallery()

@@ -12,6 +12,7 @@ dependencies = [
     "opencv-python>=5.0.0.93",
     "pillow>=12.3.0",
     "pyside6>=6.11.2",
+    "pyaudiowpatch>=0.2.12.9",
     "sounddevice>=0.5.6",
     "soundfile>=0.14.0",
 ]

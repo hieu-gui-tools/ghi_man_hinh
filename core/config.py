@@ -10,7 +10,9 @@ DEFAULT_CONFIG = {
     "encoder": "auto",  # "auto", "h264_amf", "h264_mf", "h264_nvenc", "libx264"
     "record_cursor": True,
     "record_audio": False,
-    "audio_device": "Default",
+    "audio_source": "system",  # "system" (máy tính/ứng dụng), "both" (máy + mic), "mic" (chỉ mic)
+    "audio_device_system": None,
+    "audio_device_mic": None,
     "auto_copy_clipboard": True,
     "monitor_index": 0,
     "capture_region": None,  # None for full screen or [left, top, right, bottom]

@@ -9,7 +9,14 @@
 1. **BetterCam (DirectX Desktop Duplication API)**:
    - Thu nhận khung hình trực tiếp từ VRAM của card đồ họa với độ trễ gần bằng 0 (Zero-copy GPU buffer).
    - Không gây quá tải CPU hay drop frame như các giải pháp truyền thống (MSS, PyAutoGUI, PIL).
-2. **Pacing Clock & Chuẩn CFR (Constant Frame Rate)**:
+2. **GPU Hardware Acceleration (Tăng tốc phần cứng)**:
+   - Tự động phát hiện và kích hoạt bộ mã hóa GPU: **AMD AMF**, **Windows MediaFoundation**, hoặc **NVIDIA NVENC**.
+   - Giảm tải CPU xuống dưới 2%, máy luôn mát mẻ và êm ái khi quay video 2K/60FPS.
+3. **Thu âm thanh đa nguồn chất lượng cao (WASAPI Loopback)**:
+   - 🔊 **Âm thanh máy tính**: Thu trực tiếp mọi âm thanh phát ra từ hệ thống, game, YouTube, nhạc, ứng dụng họp online mà không lẫn tạp âm môi trường qua Windows WASAPI Loopback.
+   - 🎙️ **Microphone**: Thu giọng nói rõ ràng qua micro.
+   - 🎧 **Hòa âm (Dual Audio Mixing)**: Tự động trộn đồng thời cả âm thanh máy tính và micro qua bộ lọc FFmpeg `amix`.
+4. **Pacing Clock & Chuẩn CFR (Constant Frame Rate)**:
    - Đồng bộ khung hình theo nhịp xung thời gian thực (30 / 60 / 120 FPS).
    - Tự động bù frame khi màn hình tĩnh, đảm bảo video xuất ra không bị giật, lag hay lệch tiếng.
 3. **Pipeline FFmpeg cực nhanh**:

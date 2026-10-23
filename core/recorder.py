@@ -165,6 +165,9 @@ class ScreenRecorder(QObject):
         encoder="auto",
         record_cursor=True,
         record_audio=False,
+        audio_source="system",
+        audio_device_system=None,
+        audio_device_mic=None,
         audio_device_idx=None
     ):
         if self.is_recording:
@@ -177,6 +180,9 @@ class ScreenRecorder(QObject):
         self.encoder_setting = encoder
         self.record_cursor = record_cursor
         self.record_audio = record_audio
+        self.audio_source = audio_source
+        self.audio_device_system = audio_device_system
+        self.audio_device_mic = audio_device_mic
         self.audio_device_idx = audio_device_idx
 
         self.is_recording = True
@@ -255,7 +261,13 @@ class ScreenRecorder(QObject):
 
             # Start audio recording if requested
             if self.record_audio:
-                self.audio_recorder.start(device_idx=self.audio_device_idx)
+                sys_dev = self.audio_device_system
+                mic_dev = self.audio_device_mic if self.audio_device_mic is not None else self.audio_device_idx
+                self.audio_recorder.start(
+                    source=self.audio_source,
+                    system_device_idx=sys_dev,
+                    mic_device_idx=mic_dev
+                )
 
             # Setup FFmpeg process with GPU hardware acceleration
             ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
@@ -389,17 +401,54 @@ class ScreenRecorder(QObject):
                 proc = None
 
             # Stop audio and mux if needed
-            audio_path = None
+            audio_files = {}
             if self.record_audio:
-                audio_path = self.audio_recorder.stop()
+                audio_files = self.audio_recorder.stop()
+
+            sys_wav = audio_files.get('system')
+            mic_wav = audio_files.get('mic')
+            has_sys = bool(sys_wav and os.path.exists(sys_wav) and os.path.getsize(sys_wav) > 100)
+            has_mic = bool(mic_wav and os.path.exists(mic_wav) and os.path.getsize(mic_wav) > 100)
 
             # If audio was recorded, mux audio with video
-            if audio_path and os.path.exists(audio_path) and os.path.getsize(audio_path) > 100:
+            if has_sys and has_mic:
+                # Both system audio and mic recorded: mix them together using FFmpeg amix filter
                 mux_cmd = [
                     ffmpeg_exe,
                     "-y",
                     "-i", temp_video_path,
-                    "-i", audio_path,
+                    "-i", sys_wav,
+                    "-i", mic_wav,
+                    "-filter_complex", "[1:a][2:a]amix=inputs=2:duration=longest:dropout_transition=2[aout]",
+                    "-map", "0:v",
+                    "-map", "[aout]",
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    final_video_path
+                ]
+                try:
+                    subprocess.run(
+                        mux_cmd,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        creationflags=creation_flags,
+                        startupinfo=startupinfo,
+                        check=True
+                    )
+                    if temp_video_path != final_video_path and os.path.exists(temp_video_path):
+                        os.remove(temp_video_path)
+                except Exception as e:
+                    print(f"[Recorder] Dual-audio mux error: {e}, keeping video only.")
+                    if temp_video_path != final_video_path and os.path.exists(temp_video_path):
+                        os.rename(temp_video_path, final_video_path)
+            elif has_sys or has_mic:
+                single_audio = sys_wav if has_sys else mic_wav
+                mux_cmd = [
+                    ffmpeg_exe,
+                    "-y",
+                    "-i", temp_video_path,
+                    "-i", single_audio,
                     "-c:v", "copy",
                     "-c:a", "aac",
                     "-b:a", "192k",
